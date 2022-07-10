@@ -1,7 +1,10 @@
 import { MicroCMSListResponse } from "microcms-js-sdk";
 import type { GetStaticProps, NextPage } from "next";
 import Link from "next/link";
+import { ComponentProps, FormEventHandler, useState } from "react";
 import { client } from "src/libs/client";
+import handler from "src/pages/api/search";
+import { json } from "stream/consumers";
 
 export type Blog = {
   title: string;
@@ -9,16 +12,49 @@ export type Blog = {
 };
 
 const Home: NextPage<MicroCMSListResponse<Blog>> = (props) => {
-  console.log(props.contents[0].body);
+  const [search, setSearch] = useState<MicroCMSListResponse<Blog>>();
+
+  const handleSumbit: ComponentProps<"form">["onSubmit"] = async (event) => {
+    event.preventDefault();
+    const q = event.currentTarget.query.value;
+    const data = await fetch("/api/search", {
+      method: "POST",
+      headers: { "Content-type": "application/json" },
+      body: JSON.stringify({ q }),
+    });
+    const json: MicroCMSListResponse<Blog> = await data.json();
+    setSearch(json);
+  };
+  const handleClick: ComponentProps<"button">["onClick"] = () => {
+    setSearch(undefined);
+  };
+
+  const contents = search ? search.contents : props.contents;
+  const totalCount = search ? search.totalCount : props.totalCount;
   return (
-    <div className="text-blue-500">
-      <p className="text-gray-400">{`記事の総数：${props.totalCount}件`}</p>
+    <div className="text-blue-500 ">
+      <form className="flex gap-x-2" onSubmit={handleSumbit}>
+        <input type="text" name="query" className="border border-black px-1" />
+        <button className="border border-black px-2">検索</button>
+        <button
+          type="reset"
+          className="border border-black px-2"
+          onClick={handleClick}
+        >
+          リセット
+        </button>
+      </form>
+      <p className="text-gray-400">{`${
+        search ? "検索結果" : "記事の総数"
+      }${totalCount}件`}</p>
       <ul className="mt-4 space-y-4">
-        {props.contents.map((contents) => {
+        {contents.map((content) => {
           return (
-            <li key={contents.id}>
-              <Link href={`/blogs/${contents.id}`}>
-                <a className="text-3xl text-blue-800 underline hover:text-blue-400 ">{contents.title}</a>
+            <li key={content.id}>
+              <Link href={`/blogs/${content.id}`}>
+                <a className="text-3xl text-blue-800 underline hover:text-blue-400 ">
+                  {content.title}
+                </a>
               </Link>
             </li>
           );
@@ -31,7 +67,10 @@ const Home: NextPage<MicroCMSListResponse<Blog>> = (props) => {
 export const getStaticProps: GetStaticProps<
   MicroCMSListResponse<Blog>
 > = async () => {
-  const data = await client.getList({ endpoint: "blogs" });
+  const data = await client.getList({
+    endpoint: "blogs",
+    // queries: { q: "test" },
+  });
   return {
     props: data,
   };
